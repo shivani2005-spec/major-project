@@ -1,7 +1,8 @@
 import uuid
 import shutil
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from app.core.config import settings
 from app.core.database import save_document
 from app.models.schemas import UploadResponse
@@ -9,11 +10,15 @@ from app.services.pdf_parser import extract_text_from_pdf
 from app.services.chunker import split_text_into_chunks
 from app.services.embeddings import generate_embeddings
 from app.services.vector_store import vector_store
+from app.services.auth import get_optional_current_user
 
 router = APIRouter(prefix="/api", tags=["Upload"])
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(
+    file: UploadFile = File(...),
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+):
     # 1. Validate file extension
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
@@ -91,9 +96,11 @@ async def upload_pdf(file: UploadFile = File(...)):
     chunk_dicts = [c.to_dict() for c in chunks]
     vector_store.save_index(doc_id, chunk_dicts, embeddings)
 
-    # 8. Save metadata to DB
+    # 8. Save metadata to DB (MongoDB or fallback)
+    user_id = current_user["id"] if current_user else None
     save_document(
         doc_id=doc_id,
+        user_id=user_id,
         filename=safe_filename,
         file_path=str(saved_pdf_path),
         file_size=file_size,

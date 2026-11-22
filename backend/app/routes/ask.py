@@ -1,14 +1,19 @@
-from fastapi import APIRouter, HTTPException, status
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, status, Depends
 from app.models.schemas import AskRequest, AskResponse, SourceCitation
 from app.services.embeddings import generate_embeddings
 from app.services.vector_store import vector_store
 from app.services.llm import answer_question_with_rag
 from app.core.database import save_chat_message, get_document_by_id
+from app.services.auth import get_optional_current_user
 
 router = APIRouter(prefix="/api", tags=["Ask"])
 
 @router.post("/ask", response_model=AskResponse)
-async def ask_question(request: AskRequest):
+async def ask_question(
+    request: AskRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+):
     question = request.question.strip()
     if not question:
         raise HTTPException(
@@ -16,9 +21,11 @@ async def ask_question(request: AskRequest):
             detail="Question cannot be empty."
         )
 
+    user_id = current_user["id"] if current_user else None
+
     # If document_id is provided, verify it exists
     if request.document_id:
-        doc = get_document_by_id(request.document_id)
+        doc = get_document_by_id(request.document_id, user_id=user_id)
         if not doc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -56,18 +63,20 @@ async def ask_question(request: AskRequest):
         for c in retrieved_chunks
     ]
 
-    # 5. Persist to chat history
+    # 5. Persist to chat history (with user_id)
     save_chat_message(
         document_id=request.document_id,
         sender="user",
         message=question,
-        sources=None
+        sources=None,
+        user_id=user_id
     )
     save_chat_message(
         document_id=request.document_id,
         sender="assistant",
         message=answer,
-        sources=[c.model_dump() for c in citations] if has_context else []
+        sources=[c.model_dump() for c in citations] if has_context else [],
+        user_id=user_id
     )
 
     return AskResponse(

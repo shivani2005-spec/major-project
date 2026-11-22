@@ -1,20 +1,29 @@
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, status
-from typing import List, Optional
-from app.core.database import get_all_documents, get_document_by_id, delete_document, get_chat_history, get_connection
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, status, Depends
+from app.core.database import (
+    get_all_documents,
+    get_document_by_id,
+    delete_document,
+    get_chat_history,
+    clear_chat_history
+)
 from app.models.schemas import DocumentItem, ChatHistoryItem
 from app.services.vector_store import vector_store
+from app.services.auth import get_optional_current_user
 
 router = APIRouter(prefix="/api", tags=["Documents"])
 
 @router.get("/documents", response_model=List[DocumentItem])
-async def list_documents():
-    docs = get_all_documents()
+async def list_documents(current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)):
+    user_id = current_user["id"] if current_user else None
+    docs = get_all_documents(user_id=user_id)
     return docs
 
 @router.get("/documents/{doc_id}", response_model=DocumentItem)
-async def get_document(doc_id: str):
-    doc = get_document_by_id(doc_id)
+async def get_document(doc_id: str, current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)):
+    user_id = current_user["id"] if current_user else None
+    doc = get_document_by_id(doc_id, user_id=user_id)
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -23,8 +32,9 @@ async def get_document(doc_id: str):
     return doc
 
 @router.delete("/documents/{doc_id}", status_code=status.HTTP_200_OK)
-async def remove_document(doc_id: str):
-    doc = get_document_by_id(doc_id)
+async def remove_document(doc_id: str, current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)):
+    user_id = current_user["id"] if current_user else None
+    doc = get_document_by_id(doc_id, user_id=user_id)
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -39,22 +49,23 @@ async def remove_document(doc_id: str):
     vector_store.delete_index(doc_id)
 
     # Delete from DB
-    delete_document(doc_id)
+    delete_document(doc_id, user_id=user_id)
 
     return {"success": True, "message": f"Document '{doc['filename']}' deleted successfully."}
 
 @router.get("/chat/history", response_model=List[ChatHistoryItem])
-async def fetch_chat_history(document_id: Optional[str] = None):
-    return get_chat_history(document_id)
+async def fetch_chat_history(
+    document_id: Optional[str] = None,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+):
+    user_id = current_user["id"] if current_user else None
+    return get_chat_history(user_id=user_id, document_id=document_id)
 
 @router.delete("/chat/history")
-async def clear_chat_history(document_id: Optional[str] = None):
-    conn = get_connection()
-    cursor = conn.cursor()
-    if document_id:
-        cursor.execute("DELETE FROM chat_history WHERE document_id = ?", (document_id,))
-    else:
-        cursor.execute("DELETE FROM chat_history")
-    conn.commit()
-    conn.close()
+async def clear_chat(
+    document_id: Optional[str] = None,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user)
+):
+    user_id = current_user["id"] if current_user else None
+    clear_chat_history(user_id=user_id, document_id=document_id)
     return {"success": True, "message": "Chat history cleared."}

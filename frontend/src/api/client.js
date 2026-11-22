@@ -5,11 +5,25 @@ const api = axios.create({
   timeout: 60000,
 });
 
+// Attach JWT token from localStorage to every request
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('notewise_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// --- Health ---
 export const getHealth = async () => {
   const res = await api.get('/health');
   return res.data;
 };
 
+// --- Documents ---
 export const getDocuments = async () => {
   const res = await api.get('/documents');
   return res.data;
@@ -38,6 +52,7 @@ export const deleteDocument = async (id) => {
   return res.data;
 };
 
+// --- RAG Ask ---
 export const askQuestion = async (question, documentId = null, topK = 4) => {
   const res = await api.post('/ask', {
     question,
@@ -47,6 +62,7 @@ export const askQuestion = async (question, documentId = null, topK = 4) => {
   return res.data;
 };
 
+// --- Chat History ---
 export const getChatHistory = async (documentId = null) => {
   const res = await api.get('/chat/history', {
     params: documentId ? { document_id: documentId } : {},
@@ -61,6 +77,7 @@ export const clearChatHistory = async (documentId = null) => {
   return res.data;
 };
 
+// --- Configuration ---
 export const updateApiKey = async (apiKey) => {
   const res = await api.post('/config/key', {
     api_key: apiKey,

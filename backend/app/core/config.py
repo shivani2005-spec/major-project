@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     VECTOR_DIR: Path = BASE_DIR / "vector_indices"
     DB_PATH: Path = BASE_DIR / "data" / "notewise.db"
     
+    # MongoDB Settings
+    MONGODB_URI: str = "mongodb://localhost:27017"
+    MONGODB_DB_NAME: str = "notewise"
+    
+    # JWT Authentication
+    JWT_SECRET: str = "notewise-super-secret-jwt-key-2026-prod-secure"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    
     # LLM Settings
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"

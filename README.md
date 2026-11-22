@@ -1,7 +1,7 @@
 # NoteWise AI 📚
-### An Intelligent Document-Based Question Answering System Using Retrieval-Augmented Generation (RAG)
+### An Intelligent Document-Based Question Answering System Using Retrieval-Augmented Generation (RAG) & MongoDB
 
-NoteWise AI is a full-stack academic assistant application designed for students and researchers. It allows users to upload course materials, lecture notes, and textbooks (PDFs) and ask natural-language questions about them. 
+NoteWise AI is a modern full-stack academic assistant application designed for students and researchers. It allows users to upload course materials, lecture notes, and textbooks (PDFs) and ask natural-language questions about them. 
 
 The system retrieves the most relevant passages using semantic vector search and generates accurate, grounded answers, complete with **exact source page citations** (`[Page X]`) and relevance scores, eliminating LLM hallucinations.
 
@@ -9,12 +9,20 @@ The system retrieves the most relevant passages using semantic vector search and
 
 ## 🚀 Key Features
 
-- **Document Library**: Upload, manage, inspect, and delete multiple PDF documents with size and type validation.
-- **Precision RAG Ingestion Pipeline**: Page-by-page text extraction with PyMuPDF/pypdf, recursive chunking with boundary & overlap management, and dense vector embeddings.
+- **Marketing Landing Page (`/`)**: High-converting, modern homepage featuring interactive RAG demo previews, system metrics, feature breakdowns, and workflow guides.
+- **User Authentication (`/signup` & `/signin`)**:
+  - Secure signup and signin using PBKDF2 password hashing and JWT (JSON Web Tokens).
+  - 1-Click "Demo Account" button on the signin page for instant testing.
+  - Private document libraries: documents and chat sessions are linked to the authenticated user.
+- **Database Engine (MongoDB + Local Fallback)**:
+  - Native MongoDB integration (`pymongo`) for users, documents, and chat history.
+  - Configurable for local MongoDB (`mongodb://localhost:27017`) or MongoDB Atlas cloud connection strings.
+  - Seamless local SQLite fallback if MongoDB service is offline, ensuring the app always runs out of the box.
+- **Document Library (`/app`)**: Upload, inspect, manage, and delete multiple PDF documents with size and type validation.
+- **Precision RAG Ingestion Pipeline**: Page-by-page text extraction with PyMuPDF/pypdf, boundary-aware recursive chunking (700 tokens, 120-char overlap), and dense vector embeddings.
 - **Top-k Semantic Retrieval**: Cosine similarity search across document chunks with page-level metadata.
 - **Strict Grounding & Hallucination Elimination**: Prompts instruct the LLM to rely strictly on retrieved document passages; answers default to *"I couldn't find this information in your document"* when context is insufficient.
 - **Verifiable Citations**: Every answer provides interactive citation cards showing the source document, page number badge, relevance score, and the exact supporting excerpt.
-- **Interactive Chat Interface**: Built with React, Vite, Tailwind CSS, and Lucide Icons with conversation history and suggested study prompts.
 - **Modular LLM Support**: Designed for Google Gemini API (`gemini-2.5-flash`), with offline/fallback citation synthesis mode out of the box.
 
 ---
@@ -23,11 +31,23 @@ The system retrieves the most relevant passages using semantic vector search and
 
 | Layer | Technology |
 | :--- | :--- |
-| **Frontend** | React 18, Vite, Tailwind CSS, Axios, Lucide React |
-| **Backend** | Python 3.13, FastAPI, Uvicorn, SQLite |
+| **Frontend** | React 18, React Router v7, Vite, Tailwind CSS, Axios, Lucide React |
+| **Backend** | Python 3.13, FastAPI, Uvicorn, PyJWT |
+| **Database** | MongoDB (pymongo) with SQLite local fallback |
 | **Document Parsing** | PyMuPDF (fitz), pypdf |
 | **Vector Search** | Scikit-learn, NumPy vector index, Cosine similarity |
 | **LLM & Embeddings** | Google Gemini API (`gemini-2.5-flash`, `text-embedding-004`) |
+
+---
+
+## 🌐 Application Routes
+
+| Route | View | Description |
+| :--- | :--- | :--- |
+| `/` | **HomePage** | Product overview, features, metrics, interactive preview, and CTAs |
+| `/signin` | **SignInPage** | Secure login with email/password + 1-click Demo Account login |
+| `/signup` | **SignUpPage** | Student registration with validation |
+| `/app` | **WorkspacePage** | Protected RAG workspace (upload notes, library, chat, citations) |
 
 ---
 
@@ -39,15 +59,17 @@ major-project/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app & CORS configuration
 │   │   ├── core/
-│   │   │   ├── config.py        # Settings & directory initialization
-│   │   │   └── database.py      # SQLite document & chat persistence
+│   │   │   ├── config.py        # Settings (MongoDB, JWT, Gemini, RAG)
+│   │   │   └── database.py      # MongoDB client & SQLite fallback
 │   │   ├── models/
-│   │   │   └── schemas.py       # Pydantic schemas (Ask, Upload, Citations)
+│   │   │   └── schemas.py       # Pydantic schemas (Auth, Docs, Ask)
 │   │   ├── routes/
-│   │   │   ├── upload.py        # PDF upload & ingestion endpoint
+│   │   │   ├── auth.py          # Signup, signin, and /me endpoints
+│   │   │   ├── upload.py        # PDF upload & user ingestion
 │   │   │   ├── documents.py     # Document library & delete endpoints
 │   │   │   └── ask.py           # Question answering & citations endpoint
 │   │   └── services/
+│   │       ├── auth.py          # Password hashing & JWT token validation
 │   │       ├── pdf_parser.py    # PyMuPDF/pypdf page extractor
 │   │       ├── chunker.py       # Recursive text chunker with overlap
 │   │       ├── embeddings.py    # Gemini & local embedding service
@@ -58,20 +80,29 @@ major-project/
 │   ├── vector_indices/          # Persisted vector embeddings
 │   ├── generate_sample_pdf.py   # Script to generate test PDFs
 │   ├── test_rag_pipeline.py     # Standalone RAG evaluation script
+│   ├── test_auth_api.py         # Auth & Database API test script
 │   ├── .env.example             # Environment configuration template
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── api/client.js        # Axios API client
+│   │   ├── api/client.js        # Axios API client with JWT interceptor
+│   │   ├── context/
+│   │   │   └── AuthContext.jsx  # Authentication state & methods
 │   │   ├── components/
-│   │   │   ├── Navbar.jsx       # Header & status indicators
+│   │   │   ├── Navbar.jsx       # Header, DB status, user profile, logout
+│   │   │   ├── ProtectedRoute.jsx# Auth route guard
 │   │   │   ├── UploadBox.jsx    # Drag-and-drop PDF uploader
 │   │   │   ├── DocumentList.jsx # Document library & selector
 │   │   │   ├── SourceCard.jsx   # Citation card with page badges
 │   │   │   ├── MessageBubble.jsx# Chat bubbles & formatted text
 │   │   │   ├── ChatWindow.jsx   # Conversation view & input bar
 │   │   │   └── SettingsModal.jsx# API key configuration modal
-│   │   ├── App.jsx              # Main application layout
+│   │   ├── pages/
+│   │   │   ├── HomePage.jsx     # Modern landing page
+│   │   │   ├── SignInPage.jsx   # Sign in form + 1-click Demo Account
+│   │   │   ├── SignUpPage.jsx   # Student registration form
+│   │   │   └── WorkspacePage.jsx# Interactive RAG workspace
+│   │   ├── App.jsx              # Client-side router configuration
 │   │   └── main.jsx
 │   ├── package.json
 │   ├── tailwind.config.js
@@ -88,16 +119,13 @@ major-project/
 ```bash
 cd backend
 
-# Create .env from example (optional: add your Gemini API Key)
-copy .env.example .env
-
-# Install backend dependencies (FastAPI, PyMuPDF, etc.)
+# Install dependencies
 pip install -r requirements.txt
 
 # Run the FastAPI server
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-The backend API documentation is available at: `http://127.0.0.1:8000/docs`
+*Backend runs on `http://127.0.0.1:8000` with Swagger docs at `http://127.0.0.1:8000/docs`.*
 
 ### 2. Frontend Setup
 
@@ -108,31 +136,35 @@ cd frontend
 # Install frontend dependencies
 npm install
 
-# Start the Vite development server
+# Start Vite dev server
 npm run dev
 ```
-Open your browser at: `http://localhost:5173`
+*Open `http://localhost:5173` in your browser.*
 
 ---
 
-## 🧪 Testing the RAG Pipeline
+## 🗄️ MongoDB Setup
 
-Run the automated standalone evaluation script:
-```bash
-python backend/test_rag_pipeline.py
+In `backend/.env`, set your MongoDB connection string:
+```env
+# Local MongoDB:
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DB_NAME=notewise
+
+# Or MongoDB Atlas:
+# MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrites=true&w=majority
 ```
-This tests:
-1. Multi-page PDF text extraction.
-2. Boundary-aware chunking with page number tracking.
-3. Vector generation and similarity search.
-4. Answering factual questions with exact page references.
-5. Verifying fallback response on irrelevant questions.
+*Note: If MongoDB is offline, NoteWise AI automatically falls back to local storage so you can continue testing without interruption.*
 
 ---
 
-## 🔑 Adding your Gemini API Key
+## 🧪 Testing
 
-You can configure your Google Gemini API key either:
-1. In `backend/.env`: `GEMINI_API_KEY=your_key_here`
-2. Directly inside the web UI by clicking the **Settings (⚙️)** button in the top navbar.
-Get a free API key at [Google AI Studio](https://aistudio.google.com/app/apikey).
+1. **Authentication & API Tests**:
+   ```bash
+   python backend/test_auth_api.py
+   ```
+2. **RAG Pipeline & Retrieval Tests**:
+   ```bash
+   python backend/test_rag_pipeline.py
+   ```

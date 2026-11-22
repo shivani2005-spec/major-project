@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.core.database import init_db, get_all_documents
+from app.core.database import init_db, get_all_documents, get_db_info
 from app.models.schemas import HealthStatus, ApiKeyRequest
-from app.routes import upload, documents, ask
+from app.routes import upload, documents, ask, auth
 
 # Setup logging
 logging.basicConfig(
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="NoteWise AI: An Intelligent Document-Based Question Answering System Using RAG",
+    description="NoteWise AI: An Intelligent Document-Based Question Answering System Using RAG and MongoDB",
     lifespan=lifespan
 )
 
@@ -40,6 +40,7 @@ app.add_middleware(
 )
 
 # Include API Routers
+app.include_router(auth.router)
 app.include_router(upload.router)
 app.include_router(documents.router)
 app.include_router(ask.router)
@@ -47,13 +48,16 @@ app.include_router(ask.router)
 @app.get("/api/health", response_model=HealthStatus)
 async def health_check():
     docs = get_all_documents()
+    db_info = get_db_info()
     has_key = bool(settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "your_gemini_api_key_here")
     return HealthStatus(
         status="healthy",
         project=settings.PROJECT_NAME,
         version=settings.VERSION,
         llm_configured=has_key,
-        document_count=len(docs)
+        document_count=len(docs),
+        database_engine=db_info["engine"],
+        database_connected=db_info["is_connected"]
     )
 
 @app.post("/api/config/key")
