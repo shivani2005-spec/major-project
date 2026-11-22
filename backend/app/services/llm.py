@@ -62,17 +62,23 @@ async def generate_gemini_response(prompt: str, api_key: str, model: str = setti
         res = await client.post(url, json=payload)
         if res.status_code != 200:
             error_details = res.text
-            logger.error(f"Gemini API returned status {res.status_code}: {error_details}")
-            # If 404 on model, try fallback to gemini-1.5-flash
-            if res.status_code == 404 and clean_model != "gemini-1.5-flash":
-                logger.info("Retrying with gemini-1.5-flash...")
-                fallback_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-                fallback_res = await client.post(fallback_url, json=payload)
-                if fallback_res.status_code == 200:
-                    data = fallback_res.json()
-                    candidates = data.get("candidates", [])
-                    if candidates and "content" in candidates[0]:
-                        return candidates[0]["content"]["parts"][0]["text"].strip()
+            logger.warning(f"Gemini API returned status {res.status_code} for {clean_model}: {error_details}")
+            # Try resilient fallback models in priority order
+            fallback_models = ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"]
+            for fb in fallback_models:
+                if fb == clean_model:
+                    continue
+                try:
+                    logger.info(f"Retrying with fallback model: {fb}...")
+                    fb_url = f"https://generativelanguage.googleapis.com/v1beta/models/{fb}:generateContent?key={api_key}"
+                    fb_res = await client.post(fb_url, json=payload)
+                    if fb_res.status_code == 200:
+                        fb_data = fb_res.json()
+                        fb_candidates = fb_data.get("candidates", [])
+                        if fb_candidates and "content" in fb_candidates[0]:
+                            return fb_candidates[0]["content"]["parts"][0]["text"].strip()
+                except Exception as fb_err:
+                    logger.warning(f"Fallback {fb} failed: {fb_err}")
             raise RuntimeError(f"Gemini API Error ({res.status_code}): {error_details}")
         
         data = res.json()

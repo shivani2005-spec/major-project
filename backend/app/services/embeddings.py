@@ -42,14 +42,14 @@ fallback_embedder = FallbackLocalEmbedder()
 
 async def get_gemini_embeddings(texts: List[str], api_key: str) -> List[List[float]]:
     """
-    Fetches embeddings from Google Gemini API (text-embedding-004 or embedding-001).
+    Fetches embeddings from Google Gemini API (gemini-embedding-001).
     """
     if not api_key:
         raise ValueError("No Gemini API key provided")
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents?key={api_key}"
     
-    requests = [{"model": "models/text-embedding-004", "content": {"parts": [{"text": t[:2048]}]}} for t in texts]
+    requests = [{"model": "models/gemini-embedding-001", "content": {"parts": [{"text": t[:2048]}]}} for t in texts]
     payload = {"requests": requests}
     
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -66,16 +66,15 @@ async def get_gemini_embeddings(texts: List[str], api_key: str) -> List[List[flo
 
 async def generate_embeddings(texts: List[str]) -> List[List[float]]:
     """
-    Main embedding dispatcher. Attempts Gemini embeddings if API key is configured;
-    falls back to deterministic local embedding otherwise.
+    Main embedding dispatcher. Attempts Gemini embeddings if a valid Google AI Studio API key
+    is configured; otherwise uses deterministic local embedding with instant response.
     """
     if not texts:
         return []
     
     api_key = settings.GEMINI_API_KEY
-    if api_key and api_key.strip() and api_key != "your_gemini_api_key_here":
+    if api_key and api_key.startswith("AIza"):
         try:
-            # Batch in chunks of 50 to respect API limits
             batch_size = 50
             results = []
             for i in range(0, len(texts), batch_size):
@@ -86,5 +85,5 @@ async def generate_embeddings(texts: List[str]) -> List[List[float]]:
         except Exception as e:
             logger.warning(f"Could not fetch Gemini embeddings ({e}), switching to local embedder")
     
-    # Fallback to local
+    # Fallback to local high-performance embedder
     return fallback_embedder.embed_batch(texts)
